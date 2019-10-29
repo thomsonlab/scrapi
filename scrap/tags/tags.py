@@ -301,16 +301,16 @@ def get_cell_tag_counts(
 
     print("Num reads: %i" % num_reads)
     print("Reads passing quality threshold: %i/%i (%.2f%%)" % (
-    num_reads_passing_quality_threshold, num_reads,
-    num_reads_passing_quality_threshold / num_reads * 100))
+        num_reads_passing_quality_threshold, num_reads,
+        num_reads_passing_quality_threshold / num_reads * 100))
     print("Reads matching index: %i/%i (%.2f%%)" % (
-    num_reads_matching_index, num_reads_passing_quality_threshold,
-    num_reads_matching_index / num_reads_passing_quality_threshold * 100))
+        num_reads_matching_index, num_reads_passing_quality_threshold,
+        num_reads_matching_index / num_reads_passing_quality_threshold * 100))
     print("Reads matching tag: %i/%i (%.2f%%)" % (
-    num_reads_matching_tag, num_reads_matching_index,
-    num_reads_matching_tag / num_reads_matching_index * 100))
+        num_reads_matching_tag, num_reads_matching_index,
+        num_reads_matching_tag / num_reads_matching_index * 100))
     print("Tag reads matching cell: %i/%i (%.2f%%)" % (
-    num_tag_reads_matching_cell, num_reads_matching_tag,
-    num_tag_reads_matching_cell / num_reads_matching_tag * 100))
+        num_tag_reads_matching_cell, num_reads_matching_tag,
+        num_tag_reads_matching_cell / num_reads_matching_tag * 100))
 
     return cell_tag_counts_df
