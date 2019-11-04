@@ -15,11 +15,25 @@ def convert_h5_to_sdt(
 ):
     h5_file = h5py.File(h5_file_path)
 
+    cellranger_version = 2
+
+    if "matrix" in h5_file:
+        cellranger_version = 3
+
+    matrix_name = None
+
+    if cellranger_version == 2:
+        for key, value in h5_file.items():
+            matrix_name = key
+            break
+    else:
+        matrix_name = "matrix"
+
     sdt = Sparse_Data_Table()
 
-    data = h5_file["matrix"]["data"][()]
-    indices = h5_file["matrix"]["indices"][()]
-    indptr = h5_file["matrix"]["indptr"][()]
+    data = h5_file[matrix_name]["data"][()]
+    indices = h5_file[matrix_name]["indices"][()]
+    indptr = h5_file[matrix_name]["indptr"][()]
 
     if indices[0] > indices[1]:
         for column_index in range(len(indptr) - 1):
@@ -40,14 +54,46 @@ def convert_h5_to_sdt(
             indices,
             indptr
         ),
-        h5_file["matrix"]["shape"][0],
-        h5_file["matrix"]["shape"][1]
+        h5_file[matrix_name]["shape"][0],
+        h5_file[matrix_name]["shape"][1]
     )
 
+    if cellranger_version == 2:
+        gene_names = [x.decode("UTF-8")
+                      for x in list(h5_file[matrix_name]["gene_names"])]
+        gene_ids = [x.decode("UTF-8")
+                    for x in list(h5_file[matrix_name]["gene_ids"])]
+    else:
+        gene_names = [x.decode("UTF-8")
+                      for x in list(h5_file[matrix_name]["features"]["name"])]
+        gene_ids = [x.decode("UTF-8")
+                    for x in list(h5_file[matrix_name]["features"]["id"])]
+
+    gene_name_indices = {}
+
+    disambiguated_gene_names = []
+
+    for gene_index, gene in enumerate(gene_names):
+        if gene not in gene_name_indices:
+            gene_name_indices[gene] = [gene_ids[gene_index]]
+        else:
+            gene_name_indices[gene].append(gene_ids[gene_index])
+
+    for gene_index, gene in enumerate(gene_names):
+
+        if len(gene_name_indices[gene]) > 1:
+            # Figure out which gene this is, as sorted by id
+            this_gene_id = gene_ids[gene_index]
+            duplicate_gene_index = sorted(gene_name_indices[gene]).index(
+                this_gene_id)
+            disambiguated_gene_name = "%s_%i" % (gene, duplicate_gene_index + 1)
+            disambiguated_gene_names.append(disambiguated_gene_name)
+        else:
+            disambiguated_gene_names.append(gene)
+
     sdt.column_names = [x.decode("utf-8") for x in
-                        h5_file["matrix"]["barcodes"][()]]
-    sdt.row_names = [x.decode("utf-8") for x in
-                     h5_file["matrix"]["features"]["name"][()]]
+                        h5_file[matrix_name]["barcodes"][()]]
+    sdt.row_names = disambiguated_gene_names
 
     # Transpose so that rows are cells
     if cells_as_rows:
