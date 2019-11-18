@@ -1,11 +1,16 @@
-import numpy
+import pandas
 import h5py
 
 from sparsedat import Sparse_Data_Table
 
 
-def moving_average(x, w):
-    return numpy.convolve(x, numpy.ones(w), "valid") / w
+def write_pandas_csv(data_frame, file_path):
+    pandas.DataFrame(data_frame)\
+        .to_csv(file_path, sep=',', encoding='utf-8', chunksize=1000)
+
+
+def read_pandas_csv(file_path):
+    return pandas.read_csv(file_path, sep=",", header=0, index_col=0)
 
 
 def convert_h5_to_sdt(
