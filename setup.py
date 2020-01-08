@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name="scrap",
-    version="0.3",
+    version="0.3.1",
     packages=[
         "scrap",
         "scrap.tags",
@@ -19,8 +19,8 @@ setup(
     },
     install_requires=[
         "pandas",
-        "pepars",
-        "sparsedat",
+        "pepars @ git+https://github.com/gradinarulab/sparsedat-py.git",
+        "sparsedat @ git+https://github.com/thomsonlab/sparsedat-py.git",
         "numpy",
         "plotly",
         "h5py",
