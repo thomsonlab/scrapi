@@ -549,7 +549,7 @@ class Gene_Expression_Dataset:
 
         p_values = gene_DE["p-value"]
 
-        _, p_values, _, _ = multipletests(p_values, method="bonferroni")
+        _, p_values, _, _ = multipletests(p_values, method="fdr_bh")
 
         gene_DE["p-value"] = p_values
 

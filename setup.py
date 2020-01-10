@@ -19,8 +19,8 @@ setup(
     },
     install_requires=[
         "pandas",
-        "pepars @ git+https://github.com/gradinarulab/sparsedat-py.git",
-        "sparsedat @ git+https://github.com/thomsonlab/sparsedat-py.git",
+        "pepars",
+        "sparsedat",
         "numpy",
         "plotly",
         "h5py",
