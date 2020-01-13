@@ -1,20 +1,20 @@
-from distutils.core import setup
+from setuptools import setup
 
 setup(
-    name="scrap",
+    name="scrapi",
     version="0.3.1",
     packages=[
-        "scrap",
-        "scrap.tags",
-        "scrap.chromium",
-        "scrap.plotting",
-        "scrap.dataset",
-        "scrap.utils"
+        "scrapi",
+        "scrapi.tags",
+        "scrapi.chromium",
+        "scrapi.plotting",
+        "scrapi.dataset",
+        "scrapi.utils"
     ],
     entry_points={
         "console_scripts": [
-            "scrap-preprocess=scrap.dataset.preprocess:preprocess",
-            "scrap-init-ws=scrap.dataset.initialize:initialize"
+            "scrap-preprocess=scrapi.dataset.preprocess:preprocess",
+            "scrap-init-ws=scrapi.dataset.initialize:initialize"
         ]
     },
     install_requires=[
