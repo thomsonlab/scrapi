@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="scrapi",
-    version="0.4.0",
+    version="0.4.2",
     packages=[
         "scrapi",
         "scrapi.tags",
@@ -18,9 +18,9 @@ setup(
         ]
     },
     install_requires=[
-        "pandas",
+        "pandas>=0.25.0",
         "pepars",
-        "sparsedat",
+        "sparsedat>=1.0.0alpha5",
         "numpy",
         "plotly",
         "h5py",

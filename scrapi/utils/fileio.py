@@ -1,6 +1,6 @@
 import pandas
 import h5py
-
+from sparsedat import wrappers as SDT_wrappers
 from sparsedat import Sparse_Data_Table
 
 
@@ -11,6 +11,27 @@ def write_pandas_csv(data_frame, file_path):
 
 def read_pandas_csv(file_path):
     return pandas.read_csv(file_path, sep=",", header=0, index_col=0)
+
+
+def load_mtx(mtx_file_path, features_file_path, barcodes_file_path):
+
+    if features_file_path is not None:
+        with open(features_file_path, "r") as row_names_file:
+            row_names = [line[:-1].strip() for line in row_names_file]
+            row_names = [" ".join(row_name.split("\t")[0:2])
+                         for row_name in row_names]
+    else:
+        row_names = None
+
+    if barcodes_file_path is not None:
+        with open(barcodes_file_path, "r") as column_names_file:
+            column_names = [line[:-1].strip() for line in column_names_file]
+
+    sdt = SDT_wrappers.load_mtx(mtx_file_path)
+    sdt.row_names = row_names
+    sdt.column_names = column_names
+
+    return sdt
 
 
 def convert_h5_to_sdt(

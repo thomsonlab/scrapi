@@ -1,9 +1,7 @@
 import os
 import argparse
 
-from sparsedat import wrappers as sparsedat_wrappers
-
-from .. import utils as scrap_utils
+from ..utils import fileio
 from .Gene_Expression_Dataset import Gene_Expression_Dataset
 
 
@@ -54,16 +52,16 @@ def initialize():
     if args.sdt_file_path is not None:
         raw_transcript_counts_file_path = args.sdt_file_path
     elif args.h5_file_path is not None:
-        scrap_utils.convert_h5_to_sdt(
+        fileio.convert_h5_to_sdt(
             args.h5_file_path,
             raw_transcript_counts_file_path)
     elif args.csv_file_path is not None:
         raise NotImplementedError("Haven't implemented csv to sdt")
     else:
-        sdt = sparsedat_wrappers.load_mtx(
+        sdt = fileio.load_mtx(
+            os.path.join(args.mtx_directory_path, "matrix.mtx"),
             os.path.join(args.mtx_directory_path, "features.tsv"),
-            os.path.join(args.mtx_directory_path, "barcodes.tsv"),
-            os.path.join(args.mtx_directory_path, "matrix.mtx")
+            os.path.join(args.mtx_directory_path, "barcodes.tsv")
         )
         sdt.save(raw_transcript_counts_file_path)
 
