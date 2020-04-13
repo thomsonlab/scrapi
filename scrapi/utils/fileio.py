@@ -126,3 +126,5 @@ def convert_h5_to_sdt(
         sdt.transpose()
 
     sdt.save(SDT_file_path)
+
+    return sdt

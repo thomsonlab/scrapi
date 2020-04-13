@@ -4,6 +4,9 @@ from sklearn.decomposition import PCA
 from sklearn.decomposition import NMF
 from sklearn.decomposition import TruncatedSVD
 from sklearn.manifold import TSNE
+
+from sklearn import metrics
+from sklearn.cluster import AgglomerativeClustering
 import os
 import math
 from scipy import stats
@@ -48,27 +51,35 @@ class Gene_Expression_Dataset:
     def initialize_dataset(dataset_path, seed_matrices_file_path):
 
         if isinstance(seed_matrices_file_path, str):
-            cell_transcript_counts = Sparse_Data_Table(
-                seed_matrices_file_path,
-                load_on_demand=False
+
+            seed_matrices_file_path = [seed_matrices_file_path]
+
+        if len(seed_matrices_file_path) > 1:
+            raise NotImplementedError("Haven't implemented list support for"
+                                      " SDT")
+
+        seed_matrix_file_path = seed_matrices_file_path[0]
+
+        # If the user passed an H5 file, convert it to SDT - we can use this
+        # directly as the barcode counts file
+        if seed_matrix_file_path.endswith(".h5"):
+
+            cell_transcript_counts_file_path = \
+                Gene_Expression_Dataset.get_cell_transcript_counts_file_path(
+                    dataset_path
+                )
+
+            cell_transcript_counts = fileio.convert_h5_to_sdt(
+                seed_matrix_file_path,
+                cell_transcript_counts_file_path
             )
-        elif isinstance(seed_matrices_file_path, list):
-
-            if len(seed_matrices_file_path) > 1:
-                raise NotImplementedError("Haven't implemented list support for"
-                                          " SDT")
-
-            seed_matrix_file_path = seed_matrices_file_path[0]
-
+        elif seed_matrix_file_path.endswith(".sdt"):
             cell_transcript_counts = Sparse_Data_Table(
                 seed_matrix_file_path,
                 load_on_demand=False
             )
 
-        else:
-            raise Exception("seed_matrices_file_path must be a path or list "
-                            "of paths")
-
+        # Filter out zero cells/genes - no point in keeping these around
         present_cells = cell_transcript_counts.sum(axis=1) > 0
         present_genes = cell_transcript_counts.sum(axis=0) > 0
 
@@ -212,6 +223,37 @@ class Gene_Expression_Dataset:
         self._transcript_means = self._transcript_means[
             transcripts_above_threshold]
 
+    def filter_genes(self, include_genes=None, exclude_genes=None):
+        """
+        Filter out genes that either not in the include list, or in the exclude
+        list
+
+        :param include_genes: Genes to keep
+        :param exclude_genes: Genes to remove
+        :return: None
+        """
+
+        gene_indices = []
+        gene_list = self._cell_transcript_counts.column_names
+
+        if include_genes:
+            for gene in include_genes:
+                gene_indices.append(gene_list.index(gene))
+        if exclude_genes:
+            raise NotImplementedError("Some day...")
+
+        self._cell_transcript_counts = \
+            self._cell_transcript_counts[:, gene_indices]
+
+        if self._normalized_cell_transcript_counts is not None:
+            self._normalized_cell_transcript_counts = \
+                self._normalized_cell_transcript_counts[:, gene_indices]
+
+            self._normalized_transcript_means = \
+                self._normalized_transcript_means[gene_indices]
+
+        self._transcript_means = self._transcript_means[gene_indices]
+
     def filter_low_transcript_cells(self, threshold):
 
         cells_above_threshold = \
@@ -235,6 +277,197 @@ class Gene_Expression_Dataset:
                 cells_above_threshold, :]
             self._normalized_transcript_means = \
                 self._normalized_cell_transcript_counts.mean(axis=0)
+
+    def filter_noise_barcodes(
+            self,
+            min_num_cells=1000,
+            max_num_cells=15000,
+            num_sources_noise_expected=1,
+            min_num_cell_types_expected=4,
+            max_num_clusters=15,
+            log_multiplication_factor=5000
+    ):
+        """
+        Removes estimated noise barcodes based on their transcript count
+        distribution.
+
+        :param min_num_cells:
+        :param max_num_cells:
+        :param num_sources_noise_expected:
+        :param min_num_cell_types_expected:
+        :param max_num_clusters:
+        :param log_multiplication_factor
+        :return:
+        """
+
+        min_num_clusters = num_sources_noise_expected + \
+            min_num_cell_types_expected
+
+        sorted_transcript_counts = \
+            numpy.sort(self._cell_total_transcript_counts)
+
+        transcript_count_thresholds = int(
+            sorted_transcript_counts[-max_num_cells]), int(
+            sorted_transcript_counts[-min_num_cells])
+        min_transcript_count_threshold = transcript_count_thresholds[0]
+
+        # Get a list of cells above the threshold
+        cell_indices_above_threshold = \
+            self._cell_total_transcript_counts > min_transcript_count_threshold
+
+        # Get the full gene count matrix and total transcript counts associated
+        # with these cells
+        filtered_cell_gene_counts = \
+            self._cell_transcript_counts[cell_indices_above_threshold, :]
+        filtered_total_transcript_counts = \
+            self._cell_total_transcript_counts[cell_indices_above_threshold]
+
+        # Filter out zero genes to make it easier on PCA
+        non_zero_genes = filtered_cell_gene_counts.sum(axis=0) > 0
+        filtered_cell_gene_counts = filtered_cell_gene_counts[:, non_zero_genes]
+
+        # Normalize the cell gene counts - first divide by the sum to get
+        # transcripts per cell
+        filtered_cell_gene_counts.divide(filtered_cell_gene_counts.sum(axis=1))
+
+        # Multiply by a factor to separate single counts from zero counts
+        filtered_cell_gene_counts.multiply(log_multiplication_factor)
+
+        # Add one before taking log
+        filtered_cell_gene_counts.add(1)
+
+        # Log scale
+        filtered_cell_gene_counts.log10()
+
+        pca = PCA(n_components=50)
+        transformed_PCA = pca.fit_transform(
+            filtered_cell_gene_counts.to_array())
+
+        cluster_range = range(min_num_clusters, max_num_clusters)
+
+        max_silhouette_score = -numpy.inf
+        best_num_clusters = None
+        best_clusters = None
+
+        for num_clusters in cluster_range:
+
+            clustering = AgglomerativeClustering(n_clusters=num_clusters)
+
+            clusters = clustering.fit_predict(transformed_PCA)
+
+            silhouette_score = metrics.silhouette_score(
+                transformed_PCA, clusters)
+
+            if silhouette_score > max_silhouette_score:
+                max_silhouette_score = silhouette_score
+                best_num_clusters = num_clusters
+                best_clusters = clusters
+
+        num_clusters = best_num_clusters
+        clusters = best_clusters
+
+        # Get a range of thresholds to test from the min to the max - this is to
+        # establish a slope of cell dropoff per cluster as we increase the
+        # transcript count threshold
+        fine_grain_transcript_count_thresholds = range(
+            min_transcript_count_threshold, transcript_count_thresholds[1], 50)
+
+        # A dataframe that lists the number of cells in each cluster above the
+        # thresholds
+        cluster_size_from_most_to_least = pandas.DataFrame(
+            index=list(range(num_clusters)),
+            columns=list(fine_grain_transcript_count_thresholds)
+        )
+
+        for threshold in fine_grain_transcript_count_thresholds:
+
+            for cluster in range(num_clusters):
+                # Get how many cells are in this cluster at this threshold
+                cluster_cell_counts = \
+                    filtered_total_transcript_counts[(clusters == cluster) & (
+                                filtered_total_transcript_counts > threshold)]
+
+                cluster_size_from_most_to_least.loc[cluster, threshold] = \
+                    cluster_cell_counts.shape[0]
+
+        final_cluster_loss = \
+            cluster_size_from_most_to_least.iloc[:, -1] / \
+            cluster_size_from_most_to_least.iloc[:, 0]
+        cluster_losses = \
+            cluster_size_from_most_to_least.values[:, 1:] / \
+            cluster_size_from_most_to_least.values[:, 0].reshape((-1, 1))
+
+        cluster_losses[numpy.isnan(cluster_losses)] = 0
+
+        noise_clusterer = AgglomerativeClustering(n_clusters=2)
+        noise_clusters = noise_clusterer.fit_predict(cluster_losses)
+
+        signal_cluster = noise_clusters[numpy.where(
+            final_cluster_loss.values == final_cluster_loss.values.max())[0][0]]
+
+        # Initialize a boolean array with all false
+        valid_cells = numpy.array([False] * filtered_cell_gene_counts.num_rows)
+
+        # Loop through all clusters and mark any cells that are part of a valid
+        # cluster as valid
+        for cluster in range(num_clusters):
+
+            if noise_clusters[cluster] == signal_cluster:
+                valid_cells = valid_cells | (clusters == cluster)
+
+        valid_cell_barcodes = \
+            filtered_cell_gene_counts[valid_cells].row_names
+
+        self.filter_cells(valid_cell_barcodes, exclude=False)
+
+    def filter_cells(self, cell_barcodes, exclude=True):
+        """
+        Remove cells from the dataset.
+
+        :param cell_barcodes: The list of barcodes to remove (if exclude is
+            True), or keep (if exclude is False)
+        :param exclude: Whether to exclude or include the given barcodes
+        :return: None
+        """
+
+        if exclude:
+            all_cells = set(self._cell_transcript_counts.row_names)
+            cell_barcodes = all_cells - set(cell_barcodes)
+            cell_barcodes = list(cell_barcodes)
+
+        self._cell_transcript_counts = \
+            self._cell_transcript_counts[cell_barcodes]
+
+        self._cell_total_transcript_counts = self._barcode_transcript_counts[
+            cell_barcodes
+        ].sum(axis=1)
+
+        if self._normalized_cell_transcript_counts is not None:
+            self._normalized_cell_transcript_counts = \
+                self._normalized_cell_transcript_counts[cell_barcodes]
+
+    def filter_unlabeled_cells(self, labels=None):
+        """
+        Remove any cells that don't have one of the provided labels. If no
+        labels are provided, removes cells that have no labels.
+
+        :param labels: A list of labels to filter by
+
+        :return None
+        """
+
+        if labels is None:
+            raise NotImplementedError("Must specify labels for now")
+
+        labeled_cells = set()
+        for label in labels:
+            if label not in self._labels:
+                continue
+            labeled_cells.update(self._label_cells[label])
+
+        labeled_cells = list(labeled_cells)
+
+        self.filter_cells(labeled_cells, exclude=False)
 
     def normalize_cells(
             self, data_mode=Data_Mode.READS_PER_MILLION_TRANSCRIPTS,
@@ -269,7 +502,11 @@ class Gene_Expression_Dataset:
         if label not in self._label_cells:
             self._label_cells[label] = set()
 
-        self._label_cells[label] = self._label_cells[label].union(cells)
+        valid_cells = set(self._cell_transcript_counts.row_names).intersection(
+            cells
+        )
+
+        self._label_cells[label] = self._label_cells[label].union(valid_cells)
 
     def delete_label(self, label):
 
@@ -407,6 +644,9 @@ class Gene_Expression_Dataset:
             return self._cell_transcript_counts
         else:
             return self._transformed[transform]
+
+    def get_label_cells(self):
+        return self._label_cells.copy()
 
     def get_cell_gene_expression_by_label(self, transform=None):
 
@@ -809,8 +1049,18 @@ class Gene_Expression_Dataset:
                 self._transformed[method],
                 file_path)
 
-    def get_cell_transcript_counts(self):
-        return self._cell_transcript_counts
+    def get_cell_transcript_counts(self, filter_labels=None, normalized=False):
+
+        if not filter_labels:
+            if normalized:
+                return self._normalized_cell_transcript_counts
+            return self._cell_transcript_counts
+        else:
+            cells = self.get_cells(filter_labels)
+            if normalized:
+                return self._normalized_cell_transcript_counts[list(cells), :]
+            else:
+                return self._cell_transcript_counts[list(cells), :]
 
     def get_cell_total_transcript_counts(self):
         return self._cell_total_transcript_counts
