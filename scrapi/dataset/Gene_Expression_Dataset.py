@@ -236,10 +236,10 @@ class Gene_Expression_Dataset:
         gene_indices = []
         gene_list = self._cell_transcript_counts.column_names
 
-        if include_genes:
+        if include_genes is not None:
             for gene in include_genes:
                 gene_indices.append(gene_list.index(gene))
-        if exclude_genes:
+        if exclude_genes is not None:
             raise NotImplementedError("Some day...")
 
         self._cell_transcript_counts = \
@@ -870,18 +870,18 @@ class Gene_Expression_Dataset:
 
         return cell_gene_expression
 
-    def get_gene_counts(self, gene, filter_labels=None, normalized=False):
+    def get_gene_counts(self, genes, filter_labels=None, normalized=False):
 
         cells = self.get_cells(filter_labels)
 
         if normalized:
             return pandas.Series(
-                self._normalized_cell_transcript_counts[list(cells), gene]
+                self._normalized_cell_transcript_counts[list(cells), genes]
                     .to_array().squeeze()
             )
         else:
             return pandas.Series(
-                self._cell_transcript_counts[list(cells), gene]
+                self._cell_transcript_counts[list(cells), genes]
                     .to_array().squeeze()
             )
 
