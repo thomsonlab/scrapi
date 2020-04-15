@@ -99,7 +99,16 @@ class Gene_Expression_Dataset:
         if len(samples) == 1:
             samples = set()
 
-        label_cells = {}
+        # If an existing labels file exists, don't overwrite it
+        labels_file_path = \
+            Gene_Expression_Dataset.get_cell_labels_file_path(dataset_path)
+
+        if os.path.exists(labels_file_path):
+            _, label_cells = Gene_Expression_Dataset.get_label_cells_from_file(
+                labels_file_path
+            )
+        else:
+            label_cells = {}
 
         for sample_name in samples:
             label_cells[sample_name] = set()

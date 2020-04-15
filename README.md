@@ -1,8 +1,8 @@
-# SCRAPpy
+# scrapi
 
-Single-cell RNA Analysis Platform (SCRAP) Python Package
+Single-cell RNA Analysis Platform (SCRAP) Interface
 
-SCRAPpy provides common functionality for accessing and manipulating SCRAP data
+scrapi provides common functionality for accessing and manipulating SCRAP data
 via Python.
 
 ## Installation
