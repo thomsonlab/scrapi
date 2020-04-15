@@ -1049,18 +1049,31 @@ class Gene_Expression_Dataset:
                 self._transformed[method],
                 file_path)
 
-    def get_cell_transcript_counts(self, filter_labels=None, normalized=False):
+    def get_cell_transcript_counts(
+            self,
+            filter_labels=None,
+            normalized=False,
+            genes=None
+    ):
 
         if not filter_labels:
             if normalized:
-                return self._normalized_cell_transcript_counts
-            return self._cell_transcript_counts
+                cell_transcript_counts = self._normalized_cell_transcript_counts
+            else:
+                cell_transcript_counts =  self._cell_transcript_counts
         else:
             cells = self.get_cells(filter_labels)
             if normalized:
-                return self._normalized_cell_transcript_counts[list(cells), :]
+                cell_transcript_counts = \
+                    self._normalized_cell_transcript_counts[list(cells), :]
             else:
-                return self._cell_transcript_counts[list(cells), :]
+                cell_transcript_counts = \
+                    self._cell_transcript_counts[list(cells), :]
+
+        if genes is not None:
+            return cell_transcript_counts[:, genes]
+        else:
+            return cell_transcript_counts
 
     def get_cell_total_transcript_counts(self):
         return self._cell_total_transcript_counts
