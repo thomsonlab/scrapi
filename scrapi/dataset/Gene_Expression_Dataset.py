@@ -1,6 +1,7 @@
 import pandas
 import random
 from sklearn.decomposition import PCA
+# from sklearn.decomposition import IncrementalPCA
 from sklearn.decomposition import NMF
 from sklearn.decomposition import TruncatedSVD
 from sklearn.manifold import TSNE
@@ -40,8 +41,15 @@ class Gene_Expression_Dataset:
             return cell_name[:sample_start_index]
 
     @staticmethod
-    def get_cell_labels_file_path(dataset_path):
-        return os.path.join(dataset_path, "labels.csv")
+    def get_cell_labels_file_path(dataset_path, name=None):
+
+        file_path = os.path.join(dataset_path, "labels")
+
+        if name is not None:
+            file_path += "_%s" % name
+        file_path += ".csv"
+
+        return file_path
 
     @staticmethod
     def get_cell_transcript_counts_file_path(dataset_path):
@@ -69,7 +77,7 @@ class Gene_Expression_Dataset:
                     dataset_path
                 )
 
-            cell_transcript_counts = fileio.convert_h5_to_sdt(
+            cell_transcript_counts = fileio.convert_cellranger_h5_to_sdt(
                 seed_matrix_file_path,
                 cell_transcript_counts_file_path
             )
@@ -193,6 +201,8 @@ class Gene_Expression_Dataset:
         self._normalized_transcript_means = None
 
         self._gene_metadata = None
+
+        self._current_pipeline = None
 
         if name is None:
             self._load_dataset_from_path()
@@ -987,9 +997,13 @@ class Gene_Expression_Dataset:
     def save_labels(self):
 
         Gene_Expression_Dataset.write_label_cells_to_file(
-            self._label_cells, self._get_cell_labels_file_path())
+            self._label_cells,
+            self._get_cell_labels_file_path()
+        )
 
     def load(self, name):
+
+        self._current_pipeline = name
 
         self._barcode_transcript_counts = Sparse_Data_Table(
             self._get_cell_transcript_counts_file_path()
@@ -1031,7 +1045,41 @@ class Gene_Expression_Dataset:
 
         self._initialize_cache()
 
-    def save(self, name):
+    def log_pipeline_increment(self, old_pipeline_name, new_pipline_name):
+
+        pipeline_log_file_path = os.path.join(
+            self._dataset_path, "pipelines.csv")
+
+        if os.path.exists(pipeline_log_file_path):
+            pipelines_df = pandas.read_csv(
+                pipeline_log_file_path,
+                index_col=0
+            )
+        else:
+            pipelines_df = pandas.DataFrame(
+                columns=["Source Pipeline Name"]
+            )
+
+        pipelines_df.loc[new_pipline_name] = old_pipeline_name
+
+        pipelines_df.to_csv(pipeline_log_file_path)
+
+    def save(self, name, overwrite=False):
+
+        if name == self._current_pipeline:
+            if not overwrite:
+                raise ValueError(
+                    "Won't overwrite existing pipeline if overwrite set to "
+                    "False. Choose a new pipeline name, or set the overwrite "
+                    "flag."
+                )
+            else:
+                raise UserWarning("Overwriting pipeline - not recommended for"
+                                  "data reproducibility")
+        else:
+            self.log_pipeline_increment(self._current_pipeline, name)
+
+        self._current_pipeline = name
 
         self.save_labels()
 
@@ -1245,11 +1293,12 @@ class Gene_Expression_Dataset:
 
         self._labels, self._label_cells = \
             Gene_Expression_Dataset.get_label_cells_from_file(
-                self.get_cell_labels_file_path(self._dataset_path))
+                self._get_cell_labels_file_path())
 
     def _get_cell_labels_file_path(self):
+
         return Gene_Expression_Dataset.get_cell_labels_file_path(
-            self._dataset_path)
+            self._dataset_path, self._current_pipeline)
 
     def _get_cell_transcript_counts_file_path(self):
         return Gene_Expression_Dataset.get_cell_transcript_counts_file_path(

@@ -2,6 +2,7 @@ import pandas
 import h5py
 from sparsedat import wrappers as SDT_wrappers
 from sparsedat import Sparse_Data_Table
+import warnings
 
 
 def write_pandas_csv(data_frame, file_path):
@@ -34,11 +35,11 @@ def load_mtx(mtx_file_path, features_file_path, barcodes_file_path):
     return sdt
 
 
-def convert_h5_to_sdt(
-        h5_file_path,
-        SDT_file_path,
-        cells_as_rows=True
+def load_cellranger_h5(
+    h5_file_path,
+    cells_as_rows=True
 ):
+
     h5_file = h5py.File(h5_file_path)
 
     cellranger_version = 2
@@ -124,6 +125,31 @@ def convert_h5_to_sdt(
     # Transpose so that rows are cells
     if cells_as_rows:
         sdt.transpose()
+
+    return sdt
+
+
+def convert_h5_to_sdt(
+    h5_file_path,
+    SDT_file_path,
+    cells_as_rows=True
+):
+    warnings.warn("Function renamed to convert_cellranger_h5_to_sdt")
+
+    return convert_cellranger_h5_to_sdt(
+        h5_file_path,
+        SDT_file_path,
+        cells_as_rows
+    )
+
+
+def convert_cellranger_h5_to_sdt(
+        h5_file_path,
+        SDT_file_path,
+        cells_as_rows=True
+):
+
+    sdt = load_cellranger_h5(h5_file_path, cells_as_rows)
 
     sdt.save(SDT_file_path)
 
