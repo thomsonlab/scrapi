@@ -3,6 +3,9 @@ import h5py
 from sparsedat import wrappers as SDT_wrappers
 from sparsedat import Sparse_Data_Table
 import warnings
+import anndata
+from scipy import sparse
+import numpy
 
 
 def write_pandas_csv(data_frame, file_path):
@@ -33,6 +36,57 @@ def load_mtx(mtx_file_path, features_file_path, barcodes_file_path):
     sdt.column_names = column_names
 
     return sdt
+
+def convert_cellranger_h5_to_anndata(
+    h5_file_path
+):
+
+    h5_file = h5py.File(h5_file_path)
+
+    cellranger_version = 2
+
+    if "matrix" in h5_file:
+        cellranger_version = 3
+
+    matrix_name = None
+
+    if cellranger_version == 2:
+        for key, value in h5_file.items():
+            matrix_name = key
+            break
+    else:
+        matrix_name = "matrix"
+
+    data = h5_file[matrix_name]["data"][()]
+    indices = h5_file[matrix_name]["indices"][()]
+    indptr = h5_file[matrix_name]["indptr"][()]
+    shape = h5_file[matrix_name]["shape"][()]
+    
+    matrix = sparse.csc_matrix((data, indices, indptr), shape=shape).tocsr().transpose()
+
+    if cellranger_version == 2:
+        gene_names = [x.decode("UTF-8")
+                      for x in list(h5_file[matrix_name]["gene_names"])]
+        gene_ids = [x.decode("UTF-8")
+                    for x in list(h5_file[matrix_name]["gene_ids"])]
+    else:
+        gene_names = [x.decode("UTF-8")
+                      for x in list(h5_file[matrix_name]["features"]["name"])]
+        gene_ids = [x.decode("UTF-8")
+                    for x in list(h5_file[matrix_name]["features"]["id"])]
+
+    barcodes = [x.decode("UTF-8") for x in h5_file[matrix_name]["barcodes"][()]]
+
+    barcodes_df = pandas.DataFrame(
+        index=barcodes,
+        dtype=numpy.object
+    )
+
+    genes_df = pandas.DataFrame(gene_names, index=gene_ids, columns=["Gene Name"], dtype=numpy.object)
+
+    adata = anndata.AnnData(X=matrix, var=genes_df, obs=barcodes_df)
+
+    return adata
 
 
 def load_cellranger_h5(
