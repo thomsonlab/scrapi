@@ -61,8 +61,17 @@ def convert_cellranger_h5_to_anndata(
     indices = h5_file[matrix_name]["indices"][()]
     indptr = h5_file[matrix_name]["indptr"][()]
     shape = h5_file[matrix_name]["shape"][()]
-    
-    matrix = sparse.csc_matrix((data, indices, indptr), shape=shape).tocsr().transpose()
+
+    max_value = numpy.max(data)
+
+    if max_value < 255:
+        dtype = numpy.uint8
+    if max_value < 65535:
+        dtype = numpy.uint16
+    else:
+        dtype = numpy.uint32
+
+    matrix = sparse.csc_matrix((data, indices, indptr), shape=shape).tocsr().transpose().astype(dtype)
 
     if cellranger_version == 2:
         gene_names = [x.decode("UTF-8")

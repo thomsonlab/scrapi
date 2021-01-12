@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="scrapi",
-    version="0.6.0a3",
+    version="0.6.0a4",
     packages=[
         "scrapi",
         "scrapi.tags",
